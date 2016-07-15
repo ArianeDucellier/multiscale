@@ -1,0 +1,29 @@
+#!/bin/csh 
+gmtset DOTS_PR_INCH 600 DEGREE_FORMAT 3 \
+	MEASURE_UNIT inch \
+        PAPER_MEDIA a4\
+        HEADER_FONT Helvetica HEADER_FONT_SIZE 12 \
+        ANOT_FONT Helvetica ANOT_FONT_SIZE 11 \
+        FRAME_PEN 2 ANOT_OFFSET 0.07 TICK_LENGTH 0.03 \
+        FRAME_WIDTH 0.05 LABEL_FONT Helvetica LABEL_FONT_SIZE 12
+
+set Rop = /0./47737.5/0./5995.
+set Jop = x0.00015
+set output = geometry.ps
+set tmp = .
+set Bop = a10000f5000::/a2000f1000::WeSn
+
+psbasemap -R$Rop -J$Jop \
+  -Ba10000f5000:"x, m":/a2000f1000:"z, m"::."Geometry of the model":WeSn \
+  -X1 -Y10 -K -P >! $output
+
+psxy bathymetry.dat -R$Rop -J$Jop -O -K -W5 >> $output
+
+psxy sources.dat -R$Rop -J$Jop -O -K -Sc0.05 -Gred >> $output
+
+echo "10000 2000 12 0 1 LM elastic part" | \
+  pstext -R -J$Jop -O -K >> $output
+
+echo "30000 5500 12 0 1 LM acoustic part" | \
+  pstext -R -J$Jop -O >> $output
+
