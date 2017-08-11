@@ -1,0 +1,566 @@
+\documentclass{article}
+
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{caption}
+\usepackage[margin=0.5in]{geometry}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{mathrsfs}
+
+\title{Report on research project}
+\author{Ariane Ducellier}
+
+\begin{document}
+
+\maketitle
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{How did I do it?}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection{Seismic Unix}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+\subsubsection{Command lines}
+%------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+I transform the SEGY files into Seismic Unix files with:
+
+\begin{verbatim}
+segyread tape=filename.SEGY verbose=1 endian=0 > filename.su
+\end{verbatim}
+
+The option endian=0 is for a little-endian computer. Use endian=1 for a big-endian computer. See getEndian code in C to know if your computer is little-endian or big-endian.\\
+
+I visualize the Seismic Unix files with:
+
+\begin{verbatim}
+suximage < filename.su perc=X
+\end{verbatim}
+
+Data values outside [- X * $V_{max}$ / 100 , X * $V_{max}$ / 100] are clipped.\\
+
+To save the image in a file, I use:
+
+\begin{verbatim}
+supsimage < filename.su > filename.eps
+\end{verbatim}
+
+I get the header values with:
+
+\begin{verbatim}
+surange < filename.su
+\end{verbatim}
+
+I transform the Seismic Unix files into binary files with:
+
+\begin{verbatim}
+sustrip < filename.su > filename.bin
+\end{verbatim}
+
+I get a subset of the data with:
+
+\begin{verbatim}
+suwind < filename.su > filename_sub.su key=X min=minX max=maxX
+\end{verbatim}
+
+If I have an SU file in the wrong format (little-endian instead of big-endian), I can use:
+
+\begin{verbatim}
+suoldtonew < file_wrong_format.su > file_right_format.su
+\end{verbatim}
+
+%------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+\subsubsection{Description of the header for Seismic Unix}
+%------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+\begin{center}
+\begin{tabular}{|c|c|}
+\hline
+Keyword & Signification \\
+\hline
+tracl & Trace sequence number within line \\
+tracr & Trace sequence number within reel \\
+fldr & Original field record number \\
+tracf & Trace sequence number within original field record \\
+ep & Energy source point number \\
+trid = 1 & Seismic data \\
+offset & Distance from source point to receiver group \\
+gelev & Receiver group elevation \\
+depth & Source depth below surface \\
+scalel & Scalar for elevations and depths (+ multiplier, - divisor) \\
+scalco & Scalar for coordinates (+ multiplier, - divisor) \\
+sx & X source coordinate \\
+gx & X receiver group coordinate \\
+counit=1 & Length in meters or feet \\
+ns & Number of sample in this trace \\
+dt & Sample interval of this trace in microseconds \\
+d1 & X cdp coordinate \\
+d2 & In-line number \\
+f2 & Cross-line number \\
+\hline
+\end{tabular}
+\end{center}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection{Dataset}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+\subsubsection{P-wave velocity}
+%------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+The values in the header are:
+
+\begin{center}
+\begin{tabular}{|c|c|}
+\hline
+Parameter & Value \\
+\hline
+tracl & 1 - 3820 \\
+tracr & 1 - 3820 \\
+fldr & 1 \\
+tracf & 1 - 3820 \\
+ep & 1 \\
+scalel & -10000 \\
+scalco & -10000 \\
+sx & 0 - 477375000 \\
+gx & 0 - 477375000 \\
+ns & 1200 \\
+dt & 5000 \\
+\hline
+\end{tabular}
+\end{center}
+
+There are 3820 points along the X-axis for the P-wave velocity, with 12.5 m spacing, that is the coordinate X goes from 0 to 47737.5 m. There are 1200 points along the Z-axis, with 5 m spacing, that is the coordinate Z goes from to to - 5995 m.\\
+
+In Matlab, it gives a 1200 * 3820 matrix. In Python, it gives a 3820 * 1200 array (using C-like index order to reshape the array). The size of the binary file is 1200 * 3820 * 4 = 18336000 bytes.
+
+%------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+\subsubsection{Seismic data}
+%------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+The values in the header are:
+
+\begin{center}
+\begin{tabular}{|c|c|}
+\hline
+Parameter & Value \\
+\hline
+tracr & 1 - 513600 \\
+fldr & 1 - 1600 \\
+tracf & 1 - 321 \\
+ep & 1 - 1600 \\
+offset & 0 - 8000 \\
+gelev & -150000 \\
+sdepth & 150000 \\
+scalel & -10000 \\
+scalco & -10000 \\
+sx & 10000000 - 409750000 \\
+gx & 10000000 - 489750000 \\
+ns & 2001 \\
+dt & 4000 \\
+\hline
+\end{tabular}
+\end{center}
+
+There are 1600 sources, with 25 m spacing, that is the coordinate $X_S$ goes form 1000 to 40975 m. For each source, the first receiver is located at $X_R$ = $X_S$. There are 321 receivers, with 25 m spacing, that is the coordinate $X_R$ goes from $X_S$ to $X_S$ + 8000. Sources and receivers are located 15 m below the surface. There are 2001 time steps with time step = 0.004 s. The total duration is thus equal to 8 s.\\
+
+In Matlab, it gives a 1600 * 2001 * 321 array (\textbf{I am not sure about the order}). The size of the binary file is 1600 * 2001 * 321 * 4 = 4110854400 bytes. The binary file for one shot gives a 2001 * 321 matrix in Matlab. In Python, it gives a 321 * 2001 array (using C-like index order to reshape the array). The size of the binary file is 2001 * 321 * 4 = 2569284 bytes.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection{SPECFEM2D}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+\subsubsection{Code version and modifications}
+%------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+SPECFEM2D was downloaded on Tiger on November 25\textsuperscript{th} 2015. Git version is 9b4ce1d44156ea86a7560574a3476d6f3db2defb.
+
+I modified files:
+
+\paragraph{meshfem2D/read\_parameter\_file.F90} Modification of lines 693 and 701: "gll" becomes "legacy"
+
+\paragraph{specfem2d/finalize\_simulation.F90} Modification of lines 91 and 106: "15.5" becomes "20.10"
+
+%------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+\subsubsection{How to generate the input files}
+%------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+\begin{itemize}
+	\item Use the binary file containing the initial P-wave velocity (file \textit{Vp.bin}) to create an input model with density, P-wave velocity, and S-wave velocity at each coordinate x, z (file \textit{input\_model.dat}). We also obtain a file with the bathymetry (file \textit{bathymetry.dat}). This is done with Matlab code \textit{create\_model.m}. We take $V_S = \frac{V_P}{\sqrt{3}}$ and $\rho = 310 V_P^{0.25}$ (Gardner\textsc{\char13}s relationship).
+	\item Run SPECFEM2D with the appropriate number of spectral elements in each direction. Use the options MODEL = default and SAVE\_MODEL = legacy in the parameter file \textit{Par\_file}.
+	\item Get the temporary model file of the material properties as an output of this first run (file \textit{proc000000\_model\_velocity.dat\_input}). In particular, we will need the coordinates of all the GLL points. 
+	\item Use the input model (file \textit{input\_model.dat}) and the temporary model file (file \textit{proc000000\_model\_velocity.dat\_input}) to get the actual material properties file that will be used in the simulations (file \textit{proc000000\_model\_velocity.dat\_input}). This is done with Matlab code \textit{mesh\_model.m}.
+	\item Use the wavelet file (file \textit{Wavelet.txt}) to interpolate the source function with the chosen time step and number of steps. This is done with Matlab code \textit{create\_source.m}.
+	\item Run SPECFEM2D. For the meshing part, use the options MODEL =legacy and SAVE\_MODEL = default  in the parameter file \textit{Par\_file}.
+\end{itemize}
+
+%------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+\subsubsection{Parameters of the simulation}
+%------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+The maximum P-wave velocity is 4219 m/s. The minimum P-wave velocity (outside of the sea water) is 1589 m/s. With the S-wave velocity equal to: $V_S = \frac{V_P}{\sqrt{3}}$, the minimum S-wave velocity is 917 m/s.
+
+\begin{itemize}
+	\item \textbf{First simulation:} We take 955 elements in the x direction and 120 elements in the z direction, that is the size of the elements is around 50 m. The corresponding maximum frequency is around 4 Hz for the elastic part (taking 4.5 points per S-wave length) and 5.5 Hz for the acoustic part (taking 5.5 points per P-wavelength). We take dt = 0.001 s, which corresponds to a CFL = 0.084.
+	\item \textbf{Second simulation:} We take 1910 elements in the x direction and 240 elements in the z direction, that is the size of the elements is around 25 m. The corresponding maximum frequency is around 8 Hz for the elastic part (taking 4.5 points per S-wave length) and 11 Hz for the acoustic part (taking 5.5 points per P-wavelength). We take dt = 0.0005 s, which corresponds to a CFL = 0.084.
+	\item \textbf{Third simulation:} We take 4774 elements in the x direction and 600 elements in the z direction, that is the size of the elements is around 10 m. The corresponding maximum frequency is around 20 Hz for the elastic part (taking 4.5 points per S-wave length) and 27.5 Hz for the acoustic part (taking 5.5 points per P-wavelength). We take dt = 0.0002 s, which corresponds to a CFL = 0.084.
+\end{itemize}
+
+%------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+\subsubsection{Source function}
+%------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+If the source is located in the acoustic part, the acoustic wave equation is:
+
+\begin{equation}
+\frac{\partial ^2 \phi}{\partial t^2} - \alpha ^2 \nabla ^2 \phi = - \frac{f(t)}{\kappa}
+\end{equation}
+
+In the case of a forward simulation, $f(t)$ is read in the file \textit{source.txt}. In the case of an adjoint simulation:
+
+\begin{itemize}
+	\item If seismotype = 1, $f(t)$ is read in the files \textit{Ux\_file\_single.su.adj} or \textit{AA.Sxxxx.BXX.adj}
+	\item If seismotype = 4 or 6, $f(t)$ is read in the files \textit{Up\_file\_single.su.adj} or \textit{AA.Sxxxx.PRE.adj}
+\end{itemize}
+ 
+ If the source is located in the elastic part, the elastic wave equation is:
+
+\begin{equation}
+\frac{\partial ^2 \vec{u} }{\partial t^2} - \vec\nabla \cdot ( (\alpha ^2 - 2 \beta ^2) \vec\nabla \cdot \vec{u} I + \beta ^2 (\vec\nabla \otimes \vec{u} + (\vec\nabla \otimes \vec{u}) ^T) ) = \vec{f}(t)
+\end{equation}
+
+In the case of a forward simulation, $\vec{f}(t)$ is read in the file \textit{source.txt} and multiplied by $-\text{sin }\theta$ for the X-component and $\text{cos } \theta$ for the Z-component. In the case of an adjoint simulation:
+
+\begin{itemize}
+	\item If seismotype = 1, $f(t)$ is read in the files \textit{Ux\_file\_single.su.adj} and \textit{Uz\_file\_single.su.adj} or \textit{AA.Sxxxx.BXX.adj} and \textit{AA.Sxxxx.BXZ.adj}
+\end{itemize}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection{Useful tools}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+To make a movie:
+
+\begin{verbatim}
+ffmpeg -i image%2d.jpg -vcodec mpeg4 movie.mp4
+\end{verbatim}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Conjugate gradient method}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Adjoint method and objective functional}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+To carry out the inversion, we want to minimize an objective functional $\chi (m)$:
+
+\begin{equation}
+	\chi (m) = \chi (u(m)) \text{ with } m = (m_i) \text{ with } i = 1, ... , p \text{ and } u = (u_i) \text{ with } i = 1, ... , n
+\end{equation}
+
+where $m$ is the model and $u$ is the acoustic potential or the displacement field. The relationship between the displacement field and the model is described by the acoustic or the seismic wave equations, that can be written under the form:
+
+\begin{equation}
+	l_i (u, m) = f_i \text{ for } i = 1, ... , l
+\end{equation}
+
+The acoustic or seismic wave equations can be also be written in a matrix form as:
+
+\begin{equation}
+	l_i (u, m) = \sum_{j = 1}^{n} L_{ij} (m) u_j \text{ for } i = 1, ... , l
+\end{equation}
+
+Thus we have:
+
+\begin{equation}
+	\frac{\partial l_i}{\partial u_j} = L_{ij} (m) \text{ for } i = 1 , ... , l \text{ and } j = 1, ... , n
+\end{equation}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection{Adjoint method}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+To carry out the minimization with the conjugate-gradient method, we need to compute the values of the $p$ components of the gradient of the objective functional $\frac{\partial \chi}{\partial m_i}$. In order to do this, we use the adjoint-state method as explained in Plessix (2006). We can write the gradient of the objective functional $\chi$ as:
+
+\begin{equation}
+	\frac{\partial \chi}{\partial m_i} \delta m_i = \sum_{j = 1}^{n} \frac{\partial \chi}{\partial u_j} \frac{\partial u_j}{\partial m_i} \delta m_i \text{ for } i = 1, ... , p
+\end{equation}
+
+By summing all the components of the gradient, we get:
+
+\begin{equation}
+	\left( \frac{\partial \chi}{\partial m_i} \right) ^{T} \left( \delta m_i \right) = \left( \left( \frac{\partial u_j}{\partial m_i} \right) \left( \frac{\partial \chi}{\partial u_i} \right) \right) ^{T} \left( \delta m_i \right)
+\end{equation}
+
+\begin{equation}
+	\left( \frac{\partial \chi}{\partial m_i} \right) ^{T} \left( \delta m_i \right) = \left( \frac{\partial \chi}{\partial u_i} \right) ^{T} \left( \frac{\partial u_j}{\partial m_i} \right) ^{T} \left( \delta m_i \right)
+\end{equation}
+
+with $\left( \delta u_i \right) = \left( \frac{\partial u_j}{\partial m_i} \right) ^{T} \left( \delta m_i \right)$.
+
+From Equation (4), we can write:
+
+\begin{equation}
+	\left( \frac{\partial l_j}{\partial m_i} \right) ^{T} \left( \delta m_i \right) + \left( \frac{\partial l_j}{\partial u_i} \right) ^{T} \left( \delta u_i \right) = 0 \text{ for } j = 1, ... , l
+\end{equation}
+
+By using all the components of the acoustic or the seismic wave equations, we get:
+
+\begin{equation}
+	\left( \frac{\partial l_i}{\partial m_j} \right) \left( \delta m_i \right) + \left( \frac{\partial l_i}{\partial u_j} \right) \left( \delta u_i \right) = \left( 0 \right)
+\end{equation}
+
+By multiplying with an adjoint vector $u^{\dagger} = (u_i^{\dagger}) \text{ with } i = 1, ... , l$, we get:
+
+\begin{equation}
+	\left( u_i^{\dagger} \right) ^{T} \left( \frac{\partial l_i}{\partial m_j} \right) \left( \delta m_i \right) + \left( u_i^{\dagger} \right) ^{T} \left( \frac{\partial l_i}{\partial u_j} \right) \left( \delta u_i \right) = 0
+\end{equation}
+
+By summing Equations (9) and (12), we get:
+
+\begin{equation}
+	\left( \frac{\partial \chi}{\partial m_i} \right) ^{T} \left( \delta m_i \right) = \left( \frac{\partial \chi}{\partial u_i} \right) ^{T} \left( \delta u_i \right) + \left( u_i^{\dagger} \right) ^{T} \left( \frac{\partial l_i}{\partial m_j} \right) \left( \delta m_i \right) + \left( u_i^{\dagger} \right) ^{T} \left( \frac{\partial l_i}{\partial u_j} \right) \left( \delta u_i \right)
+\end{equation}
+
+that is:
+
+\begin{equation}
+	\left( \frac{\partial \chi}{\partial m_i} \right) ^{T} \left( \delta m_i \right) = \left( \delta u_i \right) ^{T} \left( \frac{\partial \chi}{\partial u_i} \right) + \left( \delta u_i \right) ^{T} \left( \frac{\partial l_i}{\partial u_j} \right) ^{T} \left( u_i^{\dagger} \right) + \left( u_i^{\dagger} \right) ^{T} \left( \frac{\partial l_i}{\partial m_j} \right) \left( \delta m_i \right)
+\end{equation}
+
+We look for the value of the adjoint state $\left( u_i^{\dagger} \right)$ such that:
+
+\begin{equation}
+	\left( \frac{\partial \chi}{\partial u_i} \right) = - \left( \frac{\partial l_i}{\partial u_j} \right) ^{T} \left( u_i^{\dagger} \right)
+\end{equation}
+
+In that case, we have:
+
+\begin{equation}
+	\left( \frac{\partial \chi}{\partial m_i} \right) ^{T} \left( \delta m_i \right) = \left( u_i^{\dagger} \right) ^{T} \left( \frac{\partial l_i}{\partial m_j} \right) \left( \delta m_i \right)
+\end{equation}
+
+that is:
+
+\begin{equation}
+	\frac{\partial \chi}{\partial m_j} = \left( u_i^{\dagger} \right) ^{T} \left( \frac{\partial l_i}{\partial m_j} \right) \text{ for } j = 1, ... , p
+\end{equation}
+
+where $\left( \delta u_i^{\dagger} \right) ^{T} \left( \frac{\partial l_i}{\partial m_j} \right)$ is the sensitivity kernel for the $j$th model parameter.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection{Augmented functional}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+We define the augmented functional $\mathscr{L}$ by:
+
+\begin{equation}
+	\mathscr{L} (u, u^{\dagger}, m) = \chi (u(m)) + \left( u_i^{\dagger} \right) ^{T} \left( \left( l_i (u, m) \right) - \left( f_i \right) \right)
+\end{equation}
+
+If $u$ is a solution of the acoustic or the seismic wave equations, then we have:
+
+\begin{equation}
+	\mathscr{L} (u, u^{\dagger}, m) = \chi (u(m))
+\end{equation}
+
+The adjoint state $u^{\dagger}$ is independent of the model $m$, thus we can write:
+
+\begin{equation}
+	\left( \frac{\partial \mathscr{L} (u, u^{\dagger}, m)}{\partial u_i} \right) ^{T} \left( \frac{\partial u_i}{\partial m_j} \right) + \frac{\partial \mathscr{L} (u, u^{\dagger}, m)}{\partial m_j} = \frac{\partial \chi}{\partial m_j} \text{ for } j = 1 , ... , p
+\end{equation}
+
+By summing all the components of the gradient, we get:
+
+\begin{equation}
+	\left( \frac{\partial u_j}{\partial m_i} \right) \left( \frac{\partial \mathscr{L} (u, u^{\dagger}, m)}{\partial u_i} \right) + \left( \frac{\partial \mathscr{L} (u, u^{\dagger}, m)}{\partial m_i} \right) = \left( \frac{\partial \chi}{\partial m_i} \right)
+\end{equation}
+
+We choose $u^{\dagger}$ such that $\left( \frac{\partial \mathscr{L} (u, u^{\dagger}, m)}{\partial u_i} \right) = \left( 0 \right)$, that is:
+
+\begin{equation}
+	\left( \frac{\partial \chi}{\partial u_i} \right) + \left( \frac{\partial l_i}{\partial u_j} \right) ^{T} \left( u_i^{\dagger} \right) = \left( 0 \right)
+\end{equation}
+
+Equation (22) defining the adjoint state is the same as Equation (15) in the previous subsection. From Equation (19), we also have:
+
+\begin{equation}
+	\left( \frac{\partial \chi}{\partial m_i} \right) = \left( \frac{\partial \mathscr{L} (u, u^{\dagger}, m)}{\partial m_i} \right)
+\end{equation}
+
+that is:
+
+\begin{equation}
+	\left( \frac{\partial \chi}{\partial m_i} \right) = \left( \frac{\partial l_i}{\partial m_j} \right) ^{T} \left( u_i^{\dagger} \right)
+\end{equation}
+
+Equation (24) defining the sensitivity kernel is the same as Equation (16) in the previous subsection.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection{Objective functional}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+The  acoustic or seismic wave equations can be written using initial boundary conditions for each of the $S$ sources:
+
+\begin{align}
+	\begin{cases}
+		\left(u_i^s (0)\right) = \left( 0 \right) \text{ for } s = 1 , ... , S \\
+		\left( \frac{\partial u_i^s (0)}{\partial t} \right) = \left( 0 \right) \text{ for } s = 1 , ... , S \\
+		\left( l_i (u^s (t), m) \right) = \left( f_i^s (t) \right) \text{ for } s = 1 , ... , S
+	\end{cases}
+\end{align}
+
+The operator $l$ can be written as:
+
+\begin{equation}
+	\left( l_i (u (t), m) \right) = \left( \rho_i \frac{\partial ^2 u_i (t)}{\partial t^2} \right) + \left( L'_{ij} \right) \left( u_i (t) \right)
+\end{equation}
+
+The objective functional is defined by:
+
+\begin{equation}
+	\chi (m) = \frac{1}{2} \sum_{s, r} \int_0^T \left( \left( S_{s, r i} \right) ^{T} \left( u_i^s (t) \right) - d_{s, r} (t) \right) ^2 dt
+\end{equation}
+
+where $S_{s, r}$ is a restriction operator onto the receiver position $r$ for source $s$.
+
+The augmented functional $\mathscr{L}$ becomes then:
+
+\begin{equation}
+	\begin{split}
+		\mathscr{L} (u^s, u^{\dagger s}, u^{\dagger s 0}, u^{\dagger s 1}) = \frac{1}{2} \sum_{s, r} \int_0^T \left( \left( S_{s, r i} \right) ^{T} \left( u_i^s (t) \right) - d_{s, r} (t) \right) ^2 dt \\
+		+ \sum_s \int_0^T \left( u_i^{\dagger s} (t) \right) ^{T} \left( \left( \rho_i \frac{\partial ^2 u_i^s (t)}{\partial t^2} \right) + \left( L'_{ij} \right) \left( u_i^s (t) \right) - \left( f_i^s (t) \right) \right) dt \\
+		+ \sum_s \left( u_i^{\dagger s 0} \right) ^{T} \left( u_i^s(0) \right) + \sum_s \left( u_i^{\dagger s 1} \right) ^{T} \left( \frac{\partial u_i^s (0)}{\partial t} \right)
+	\end{split}
+\end{equation}
+
+where $u^{\dagger s 0}$ and $u^{\dagger s 1}$ are the adjoint states associated to the initial boundary conditions for source $s$.
+
+Using two integrations by part, we get:
+
+\begin{equation}
+	\begin{split}
+		\int_0^T \left( u_i^{\dagger s} (t) \right) ^{T} \left( \rho_i \frac{\partial ^2 u_i^s (t)}{\partial t^2} \right) dt = \\
+		\int_0^T \left( \frac{\partial ^2 u_i^{\dagger s} (t)}{\partial t^2} \right) ^{T} \left( \rho_i u_i^s (t) \right) dt \\
+		+ \left( u_i^{\dagger s} (T) \right) ^{T} \left( \rho_i \frac{\partial u_i^s (T)}{\partial t} \right) - \left( u_i^{\dagger s} (0) \right) ^{T} \left( \rho_i \frac{\partial u_i^s (0)}{\partial t} \right) \\
+		- \left( \frac{\partial u_i^{\dagger s} (T)}{\partial t} \right) ^{T} \left( \rho_i u_i^s (T) \right) + \left( \frac{\partial u_i^{\dagger s} (0)}{\partial t} \right) ^{T} \left( \rho_i u_i^s (0) \right)
+	\end{split}
+\end{equation}
+
+The augmented functional $\mathscr{L}$ is thus equal to:
+
+\begin{equation}
+	\begin{split}
+		\mathscr{L} (u^s, u^{\dagger s}, u^{\dagger s 0}, u^{\dagger s 1}) = \frac{1}{2} \sum_{s, r} \int_0^T \left( \left( S_{s, r i} \right) ^{T} \left( u_i^s (t) \right) - d_{s, r} (t) \right) ^2 dt \\
+		+ \sum_s \int_0^T \left( \frac{\partial ^2 u_i^{\dagger s} (t)}{\partial t^2} \right) ^{T} \left( \rho_i u_i^s (t) \right) dt \\
+		+ \sum_s \left( u_i^{\dagger s} (T) \right) ^{T} \left( \rho_i \frac{\partial u_i^s (T)}{\partial t} \right) - \sum_s \left( u_i^{\dagger s} (0) \right) ^{T} \left( \rho_i \frac{\partial u_i^s (0)}{\partial t} \right) \\
+		- \sum_s \left( \frac{\partial u_i^{\dagger s} (T)}{\partial t} \right) ^{T} \left( \rho_i u_i^s (T) \right) + \sum_s \left( \frac{\partial u_i^{\dagger s} (0)}{\partial t} \right) ^{T} \left( \rho_i u_i^s (0) \right) \\
+		+ \sum_s \int_0^T \left( u_i^{\dagger s} (t) \right) ^{T} \left( \left( L'_{ij} \right) \left( u_i^s (t) \right) - \left( f_i^s (t) \right) \right) dt \\
+		+ \sum_s \left( u_i^{\dagger s 0} \right) ^{T} \left( u_i^s(0) \right) + \sum_s \left( u_i^{\dagger s 1} \right) ^{T} \left( \frac{\partial u_i^s (0)}{\partial t} \right)
+	\end{split}
+\end{equation}
+
+To compute the adjoint state $(u^{\dagger s}, u^{\dagger s 0}, u^{\dagger s 1})$ for each source $s$, we need to compute all the partial derivatives $\frac{\partial \mathscr{L} (u^s, u^{\dagger s}, u^{\dagger s 0}, u^{\dagger s 1})}{\partial u_i^s (t)}$, $\frac{\partial \mathscr{L} (u^s, u^{\dagger s}, u^{\dagger s 0}, u^{\dagger s 1})}{\partial u_i^s (0)}$, $\frac{\partial \mathscr{L} (u^s, u^{\dagger s}, u^{\dagger s 0}, u^{\dagger s 1})}{\partial u_i^s (T)}$, $\frac{\partial \mathscr{L} (u^s, u^{\dagger s}, u^{\dagger s 0}, u^{\dagger s 1})}{\partial \frac{\partial u_i^s (0)}{\partial t}}$ and $\frac{\partial \mathscr{L} (u^s, u^{\dagger s}, u^{\dagger s 0}, u^{\dagger s 1})}{\partial \frac{\partial u_i^s (T)}{\partial t}}$, and set them to 0. For each source $s$, we thus have the adjoint state equations:
+
+\begin{align}
+	\begin{cases}
+		\sum_r \left( \left( S_{s, r i} \right) ^{T} \left( u_i^s (t) \right) - d_{s, r} (t) \right) \left( S_{s, r i} \right) + \left( \rho_i \frac{\partial ^2 u_i^{\dagger s} (t) }{\partial t^2} \right) + \left( L'_{ij} \right) ^{T} \left( u_i^{\dagger s} (t) \right) = \left( 0 \right) \\
+		\left( \rho_i \frac{\partial u_i^{\dagger s} (0)}{\partial t} \right) + \left( u_i^{\dagger s 0} \right) = \left( 0 \right) \\ 
+		- \left( \rho_i \frac{\partial u_i^{\dagger s} (T)}{\partial t} \right) = \left( 0 \right) \\
+		- \left( \rho_i u_i^{\dagger s} (0) \right) + \left( u_i^{\dagger s 1} \right) = \left( 0 \right) \\
+		\left( \rho_i u_i^{\dagger s} (T) \right) = \left( 0 \right)
+	\end{cases}
+\end{align}
+
+To get the adjoint state for each source $s$, we need to solve the system: 
+
+\begin{align}
+	\begin{cases}
+		\left(u_i^{\dagger s} (T) \right) = \left( 0 \right) \\
+		\left( \frac{\partial u_i^{\dagger s} (T)}{\partial t} \right) = \left( 0 \right) \\
+		\left( l'_i (u^{\dagger s} (t), m) \right) = \left( f_i^{\prime s} (t) \right)
+	\end{cases}
+\end{align}
+
+where the operator $l'$ is equal to:
+
+\begin{equation}
+	\left( l'_i (u (t), m) \right) = \left( \rho_i \frac{\partial ^2 u_i (t)}{\partial t^2} \right) + \left( L'_{ij} \right) ^{T} \left( u_i (t) \right)
+\end{equation}
+
+and the source function $f^{\prime s} (t)$ is equal to:
+
+\begin{equation}
+	\left( f_i^{\prime s} (t) \right) = - \sum_r \left( \left( S_{s, r i} \right) ^{T} \left( u_i^s (t) \right) - d_{s, r} (t) \right) \left( S_{s, r i} \right)
+\end{equation}
+
+This is equivalent to solving the system:
+
+\begin{align}
+	\begin{cases}
+		\left(u_i^{\dagger s} (0) \right) = \left( 0 \right) \\
+		\left( \frac{\partial u_i^{\dagger s} (0)}{\partial t} \right) = \left( 0 \right) \\
+		\left( l'_i (u^{\dagger s} (t), m) \right) = \left( f_i^{\prime s} (T - t) \right)
+	\end{cases}
+\end{align}
+
+The matrix $\left( L'_{ij} \right)$ is symmetric, thus we can solve the adjoint problem using the same method as the one we used to solve the forward problem, but using a different source.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection{Summary of the procedure}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+For each source $s$, we solve the forward problem:
+
+\begin{align}
+	\begin{cases}
+		\left(u_i^s (0)\right) = \left( 0 \right) \\
+		\left( \frac{\partial u_i^s (0)}{\partial t} \right) = \left( 0 \right) \\
+		\left( l_i (u^s (t), m) \right) = \left( f_i (t) \right)
+	\end{cases}
+\end{align}
+
+where $f (t)$ is the wavelet given in the Chevron dataset. Then, for each source $s$ we compute the adjoint source $f^{\prime s} (t)$:
+
+\begin{equation}
+	\left( f_i^{\prime s} (t) \right) = - \sum_r \left( \left( S_{s, r i} \right) ^{T} \left( u_i^s (T - t) \right) - d_{s, r} (T - t) \right) \left( S_{s, r i} \right)
+\end{equation}
+
+using the residual between the acoustic potential and the waveform given in the Chevron dataset for each receiver associated to the current source. Then, for each source, we solve the adjoint problem using the adjoint source. We can then compute the gradient for each source $s$:
+
+\begin{equation}
+	\frac{\partial \chi}{\partial m_j} = \int_0^T \left( u_i^{\dagger s} (T - t) \right) ^{T} \left( \frac{\partial l_i}{\partial m_j} \right) dt \text{ for } j = 1, ... , p
+\end{equation}
+
+where $\int_0^T \left( \delta u_i^{\dagger s} (T - t) \right) ^{T} \left( \frac{\partial l_i}{\partial m_j} \right) dt$ is the sensitivity kernel for the $j$th model parameter.
+
+We then sum the gradient of all the sources to get the gradient that will be used in the conjugate-gradient method.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Articles and books}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+Introduction to seismology. Peter M. Shearer. Cambridge: Cambridge University Press, 2009. QE534.3 .S455 2009
+
+An introduction to seismology, earthquakes, and earth structure. Seth Stein, Michael Wysession. Malden, MA: Blackwell Pub., 2003. QE534.3 .S74 2003
+
+Modern global seismology. Edited by Thorne Lay, Terry C. Wallace. San Diego: Academic Press, c1995. QE534.2 .M62 1995
+
+Principles of seismology. Agust\'in Udias. Cambridge ; New York: Cambridge University Press, 1999. QE534.2 .U35 1999
+
+The seismic wavefield. B.L.N. Kennett. Cambridge ; New York: Cambridge University Press, 2001-2002. QE541 .K46 2001 
+
+Seismic wave propagation in stratified media. Brian Kennett. Acton, A.C.T.: ANU E Press, 2009. QE538.5 .K46 1983 
+
+Quantitative seismology. Keiiti Aki, Paul G. Richards. Sausalito, CA: University Science Books, 2009. QE539 .A64 
+
+Theoretical global seismology. F.A. Dahlen and Jeroen Tromp. Princeton, N.J.: Princeton University Press, 1998. QE534.2 .D34 1998 
+
+\end{document}
